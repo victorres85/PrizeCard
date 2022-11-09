@@ -35,6 +35,7 @@ Bellow you have an example of Model with some explanations:
 ```
 Class Businesses(models.Model):
     user = models.OneToOneField(User, null=True, on_delete=models.CASCADE)
+    slug = models.SlugField(max_length=200, unique=True)
     email = models.EmailField(max_length = 250)
     address_first_line = models.CharField(max_length = 200)
     address_second_line = models.CharField(max_length = 200, blank=True)
@@ -52,6 +53,7 @@ Class Businesses(models.Model):
 `Class Businesses(models.Model):` -\> creates our model called Business which extends models.Model (it's necessary to tell django to build a SQL table using the information we will declare insede this class)
 `user = models.OneToOneField(User, null=True, on_delete=models.CASCADE)`
 `OneToOneField` -\> creates a one to one relationshipe between Business and User Tables
+`SlugField` -\> creates a text field that will be used as a slug so a URL can utilize it
 `EmailField` -\> creates a text field with predefine email validation, *max_length = 250* is a required parameter
 `CharField` -\> creates a text field with, *max_length = 200* is a required parameter
 `IntegerField` -\> creates a Integer Field

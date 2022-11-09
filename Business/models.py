@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 
 class Businesses(models.Model):
     user = models.OneToOneField(User, null=True, on_delete=models.CASCADE)
+    slug = models.SlugField(max_length=200, unique=True)
     email = models.EmailField(max_length = 250)
     address_first_line = models.CharField(max_length = 200)
     address_second_line = models.CharField(max_length = 200, blank=True)
@@ -30,6 +31,7 @@ class Businesses(models.Model):
 
 class Cards(models.Model):
     name = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200, unique=True)
     business = models.ForeignKey(Businesses, on_delete=models.CASCADE)
     description = models.TextField()
     total_points = models.IntegerField()
