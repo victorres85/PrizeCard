@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from .models import Businesses, Cards, User
+from .models import Businesses, Cards
+from django.contrib.auth.models import User
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

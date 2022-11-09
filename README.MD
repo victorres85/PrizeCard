@@ -71,3 +71,31 @@ Class Businesses(models.Model):
 > `from django.contrib.auth.models import User`
 > once the User model has been imported we can now run the command bellow and access all the properties from this model:
 > `User.__dict__.keys()`
+
+## Migrating the database
+
+Once the model is set up, you can run the following code to actually create the databases:
+
+`python3 manage.py makemigrations`
+`python3 manage.py migrate`
+
+
+## Adding the database to the admin panel
+On admin.py write the following lines
+
+`from .models import Name_of_Model`
+
+`admin.site.register(Name_of_Model)`
+
+
+you can now create a SuperUser to be able to access the admin panel, for this write the following at the terminal
+
+`python3 manage.py createsuperuser`
+
+follow the instructions to setup the new user, with that done you can now run
+
+`python3 manage.py runserver`
+
+and access the Admin through the following address
+http://127.0.0.1:8000/admin/
+
