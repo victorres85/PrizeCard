@@ -16,6 +16,13 @@ class Businesses(models.Model):
     phone_number = models.IntegerField()
     logo = models.ImageField(upload_to='media/businesses/%y/%m/%d', blank=True)
     join_date = models.DateTimeField(auto_now_add = True)
+    active = models.BooleanField(default=True)
+
+    def getNumberOfActiveBusinesses(self):
+        return Businesses.objects.filter(active=True).count()
+
+    def getNumberOfBusinesses(self):
+        return Businesses.objects.all().count()
 
     def __unicode__(self):
         return self.user.username
@@ -28,6 +35,7 @@ class Cards(models.Model):
     total_points = models.IntegerField()
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, blank=True)
+    active = models.BooleanField(default=True)
 
     def __unicode__(self):
         return self.name
