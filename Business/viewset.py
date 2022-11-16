@@ -1,10 +1,12 @@
 from django.shortcuts import render
-from .serializers import BusinessesSerializer, CardsSerializer, UserSerializer, ProfileSerializer
+from .serializers import BusinessesSerializer, CardsSerializer, UserSerializer, ProfileSerializer, ipSerializer
 from .models import Businesses, Cards, Profile
 from django.contrib.auth.models import User
 from rest_framework.viewsets import ModelViewSet
 from django.conf import settings
 from django.contrib.auth.models import User
+
+
 
 # Create your views here.
 

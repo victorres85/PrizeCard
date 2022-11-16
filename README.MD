@@ -208,3 +208,131 @@ def debug_task(self):
 Now on our app directory we will create the async tasks to be used, we then create a file called **tasks.py **and create our task, in his case we are creating a task to send a confirmation email, the code used is found below:
 
 `celery -A PrizeCard.celery worker -l DEBUG -E`
+
+# GEOLOCALIZATION
+
+We will divide this topic in two diferent parts:
+
+First we will add the latitude and longitude to the Businesses model so we can have the exact location of each business, Second we will collect the ip address of the machine we are using and identified its location, it will be used to feed the BusinessesSerializer with a new field called **distance** which will be the calculation of the users IP location with each business location
+
+## Adding latitude and longitude to the Businesses model
+
+`geopy` is the library responsible for searching for the latitude and longitude. it will use the Nominatim api to retrieve those informations.
+
+Let's start by installing it:
+`pip install geopy`
+
+Down here we have the code we have used inside models.py with explanations below it
+
+```python
+from django.db import models
+from geopy.geocoders import Nominatim
+
+class Businesses(models.Model):
+    ...
+    lat = models.CharField(max_length=20, null=True, blank=True)
+    long = models.CharField(max_length=20, null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        geolocator = Nominatim(user_agent="Business")
+        location = geolocator.geocode(self.post_code)
+        self.lat = location.latitude
+        self.long = location.longitude
+        if not self.slug:
+            self.slug = slugify(self.business_name)
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+```
+
+First we have imported the Nominatim library from geopy
+
+`from geopy.geocoders import Nominatim`
+
+We also have added 2 blank fields to our model:
+
+`lat = models.CharField(max_length=20, null=True, blank=True)`
+
+`long = models.CharField(max_length=20, null=True, blank=True)`
+
+To fill those fildes with the required information we have overwrite the save method
+
+`geolocator = Nominatim(user_agent="home")`
+
+On `user_agent` we have to add our app's name.
+
+`location = geolocator.geocode(self.pincode)`
+
+By using the **geocode** method we can pass a pincode, a postcode or an address and have the latitude and longitude as return.
+
+other option would be to use **reverse** where we would pass the latitude and longitude and have the address
+
+`self.lat = location.latitude`
+
+`self.long = location.longitude`
+
+we will then assign the values of latitude and longitude to our model
+
+## Adding extra field to BusinessSerializer
+
+For this we will have to install a few packages: requests, ipify and geopy
+`pip install requests ipify geopy`
+
+Now on Serializers.py we will add the following imports:
+
+```
+import requests
+from geopy.distance import great_circle
+```
+
+The updated BusinessesSerializer is found below with explanations below:
+
+```python
+class BusinessesSerializer(serializers.ModelSerializer):
+    distance = serializers.SerializerMethodField('get_location')
+
+    class Meta:
+        model= Businesses
+        fields = ('id', 'address_first_line', 'address_second_line',
+                  'city', 'region', 'post_code', 'phone_number', 'logo', 'join_date', 'distance')
+
+    def get_location(self, business):
+        ip_info = requests.get('https://api64.ipify.org?format=json').json()
+        ip_address = ip_info["ip"]
+        response = requests.get(f'http://api.ipstack.com/{ip_address}?access_key=8eba29fcae0bbc63c1e93b8c370e4bcf').json() 
+        latitude = response.get("latitude")
+        longitude = response.get("longitude")
+        first = (float(latitude), float(longitude))
+        second = (business.lat, business.long)
+        distance = great_circle(first, second).miles
+
+
+        return distance
+```
+
+`distance = serializers.SerializerMethodField('get_location')`
+The code above creates a variable called distance with the value which is returned by the **get_location** method, this variale will then be added to our fields list.
+
+`def get_location(self, business):`
+The function above is the one to be called by the SerializerMethodField which will pass a reference of each object to the **business** parameter
+
+`ip_info = requests.get('https://api64.ipify.org?format=json').json()`
+the line above will return the machine IP from the website api64 and will convert the information collected into json. we will then isolate the ip addres into the **ip_address** variable.
+
+`response = requests.get(f'http://api.ipstack.com/{ip_address}?access_key=8eba29fcae0bbc63c1e93b8c370e4bcf').json()`
+The line above will access the ipstack api, we will pass our ip\_address and the access\_key to return an json with different informations.
+
+> IMPORTANT: ipstack is an api, which we have to pay, for now we are using the free_version which allow us to make 100 requisitions a month
+
+we will then isolate the the latitude and longitude into different variables and pass it to a tuple called **first,** making sure each value is of Float Type.
+
+`second = (business.lat, business.long)`
+
+on the line above we are colecting the lat and long variables from each object on our model and passing it into a tupple named second
+
+`distance = great_circle(first, second).miles`
+
+finally here we are using the `great_circle` method from  **geopy.distance** to calculate the distance in miles from first and second locations
+
+this variable is then returned to fill the information into the variable **distance  **which have been created at the beginning of our code and then passed to our **BusinessessSerializer FIELDS list**

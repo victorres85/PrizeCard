@@ -5,6 +5,9 @@ from django.dispatch import receiver
 from django.template.defaultfilters import slugify
 import random 
 from .tasks import registration_completed
+from geopy.geocoders import Nominatim
+
+
 
 # Create your models here.
 
@@ -54,6 +57,8 @@ class Businesses(models.Model):
     logo = models.ImageField(upload_to='media/businesses/%y/%m/%d', blank=True)
     join_date = models.DateTimeField(auto_now_add = True)
     active = models.BooleanField(default=True, blank=True)
+    lat = models.CharField(max_length=20, null=True, blank=True)
+    long = models.CharField(max_length=20, null=True, blank=True)
    
 
     def getNumberOfActiveBusinesses(self):
@@ -64,6 +69,10 @@ class Businesses(models.Model):
 
     
     def save(self, *args, **kwargs):
+        geolocator = Nominatim(user_agent="home")
+        location = geolocator.geocode(self.post_code)
+        self.lat = location.latitude
+        self.long = location.longitude
         if not self.slug:
             self.slug = slugify(self.business_name)
         return super().save(*args, **kwargs)
