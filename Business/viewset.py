@@ -1,5 +1,6 @@
 from django.shortcuts import render
-from .serializers import BusinessesSerializer, CardsSerializer, UserSerializer, ProfileSerializer, PostBusinessesSerializer
+from .serializers import BusinessesSerializer, CardsSerializer, UserSerializer, ProfileSerializer, ListBusinessesSerializer, PostUserSerializer
+
 from .models import Businesses, Cards, Profile
 from django.contrib.auth.models import User
 from rest_framework.viewsets import ModelViewSet
@@ -12,11 +13,11 @@ from geopy.distance import great_circle
 
 
 class BusinessesViewSet(ModelViewSet):
-    serializer_class = PostBusinessesSerializer
+    serializer_class = BusinessesSerializer
     queryset = Businesses.objects.all()
     
     def list(self, request, pk=None):
-        serializer_class = BusinessesSerializer
+        serializer_class = ListBusinessesSerializer
 
         #Get IP info once
         ip_info = requests.get('https://api64.ipify.org?format=json').json()
@@ -50,5 +51,12 @@ class CardsViewSet(ModelViewSet):
     queryset = Cards.objects.all()  
 
 class UserViewSet(ModelViewSet):
-    serializer_class = UserSerializer
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return UserSerializer
+        if self.action == 'create':
+            return PostUserSerializer
+        return UserSerializer # I dont' know what
+
     queryset = User.objects.all()  
+
