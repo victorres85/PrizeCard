@@ -4,7 +4,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.template.defaultfilters import slugify
 import random 
-from .tasks import registration_completed
+from PrizeCard.tasks import registration_completed
 from geopy.geocoders import Nominatim
 
 

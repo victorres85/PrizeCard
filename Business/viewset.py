@@ -1,13 +1,10 @@
 from django.shortcuts import render
 from .serializers import BusinessesSerializer, CardsSerializer, UserSerializer, ProfileSerializer, ListBusinessesSerializer, PostUserSerializer
-
 from .models import Businesses, Cards, Profile
 from django.contrib.auth.models import User
 from rest_framework.viewsets import ModelViewSet
 from django.contrib.auth.models import User
-from rest_framework import mixins
 from rest_framework.response import Response
-from rest_framework.viewsets import GenericViewSet
 import requests
 from geopy.distance import great_circle
 
@@ -27,15 +24,16 @@ class BusinessesViewSet(ModelViewSet):
         longitude = response.get("longitude")
         first = (float(latitude), float(longitude))
 
-    # Calculate distances for all businesses and pass them as a context to our serializer
+        # Calculate distances for all businesses and pass them as a context to our serializer
         businesses = Businesses.objects.all()
         distances = {}
         for business in businesses:
             second = (business.lat, business.long)
             distance = great_circle(first, second).miles
             distances[business.id] = distance
+            
         # Sort by distance
-        businesses_processed = BusinessesSerializer(businesses, many=True, context={'distances': distances}).data
+        businesses_processed = ListBusinessesSerializer(businesses, many=True, context={'distances': distances}).data
         businesses_processed.sort(key=lambda x: x['distance'])
 
 

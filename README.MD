@@ -1,143 +1,3 @@
-# Starting environment
-
-To work with python we have first to create a virtual enviroment to hold our project, to do it you will navagate to the project directory on the terminal and run the following command (keep on mind the python3 and pip have to be previously installed):
-
-`python -m venv env`
-
-> Command used to create the virtual environment
-
-`. env/bin/activate`
-
-> Command used to activate our virtual env
-
-`pip install -r requirements.txt`
-
-> Command used to install all required libraries
-
-`python manage.py runserver`
-
-> This command will run the application, now if you enter the http://127.0.0.1:8000 you should see our application running on your browser
-
-# CREATING NEW MODELS
-
-To create our models we will be using the `models.py` file which is located inside our App_User directory, inside `models.py` make sure to have the following imports:
-
-```python
-from django.db import models
-from django.contrib.auth.models import User
-```
-
-`models` will be used to extend the Model class into our tables class
-`User` will be used for a OneToOneField relationship between our App_User model and the User model provided by Django.
-
-Bellow you have an example of Model with some explanations:
-
-```
-Class Businesses(models.Model):
-    user = models.OneToOneField(User, null=True, on_delete=models.CASCADE)
-    email = models.EmailField(max_length = 250)
-    address_first_line = models.CharField(max_length = 200)
-    address_second_line = models.CharField(max_length = 200, blank=True)
-    city = models.CharField(max_length = 100)
-    region = models.CharField(max_length = 100)
-    post_code = models.CharField(max_length = 10)
-    phone_number = models.IntegerField()
-    logo = models.ImageField(upload_to='media/businesses/%y/%m/%d', blank=True)
-    join_date = models.DateTimeField(auto_now_add = True)
-
-    def __unicode__(self):
-        return self.user.username
-```
-
-`Class Businesses(models.Model):` -> creates our model called Business which extends models.Model (it's necessary to tell django to build a SQL table using the information we will declare insede this class)
-`user = models.OneToOneField(User, null=True, on_delete=models.CASCADE)`
-`OneToOneField` -> creates a one to one relationshipe between Business and User Tables
-`EmailField` -> creates a text field with predefine email validation, *max_length = 250* is a required parameter
-`CharField` -> creates a text field with, *max_length = 200* is a required parameter
-`IntegerField` -> creates a Integer Field
-`ImageField` -> is a FileField with uploads restricted to image formats only, *upload_to=* is required, we will here pass the path for our image to be stored.
-`DateTimeField` -> is used to work with date and time. *auto_now_add = True* will tell Django to automatically fill the field with the date and time of the moment of the object creation. (we could also use *auto_now=True,* this parameter is used to get the date and time field updated every time the object is modified.
-`TextField` -> creates a text field that would accept multiple lines of text.
-
-```
-        def __unicode__(self):
-        return self.user.username
-```
-
-> We are here defining the return from our class, so when we call it we receive the user username as return.
-> to investigate which fields do we have on the user Model we can open the django shell on the terminal by writing
-> `python3 manage.py shell`
-> we can then import the user model with the code:
-> `from django.contrib.auth.models import User`
-> once the User model has been imported we can now run the command bellow and access all the properties from this model:
-> `User.__dict__.keys()`
-
-## AUTOMATICALLY CREATE A BUSINESS MODEL AFTER CREATING A USER MODEL
-
-By using the method **receiver ** we can add a listener to our Business Model, so every time a user is created or modified a related business model will be also created or modified.
-
-```Python
-from django.dispatch import receiver
-
-
-@receiver(post_save, sender=User)
-def create_business_profile(sender, instance, created, **kwargs):
-    if created:
-        Businesses.objects.create(user=instance)
-
-@receiver(post_save, sender=User)
-def save_business_profile(sender, instance, **kwargs):
-    instance.businesses.save()
-```
-
-# CREATING SERIALIZER
-
-To create the serializers we first have to import all the necessary models and also import serializer library from rest_framework.
-
-We can then, follow the example below.
-
-Create a Serializer by adding the name of the Model plus Serializer, we then extend the serializers.ModelSerializer and declare the Meta class.
-
-inside the meta class we can add the model field which will be equal to the related Model and add fields where we will declare all fields we want to be visible on our Serializer .
-
-* passing one serializer into another:
-
-We can declare a variable linked to the target serializer and then use it as a field, we can see an example on BusinessesSerializer
-
-```python
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ('id','username', 'first_name', 'last_name', 'email')
-
-
-class BusinessesSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
-    class Meta:
-        model= Businesses
-        fields = ('user', 'address_first_line', 'address_second_line',
-                  'city', 'region', 'post_code', 'phone_number', 'logo', 'join_date' )
-```
-
-# CREATING VIEWSETS
-
-To create our views, we can have different approaches here we will be extending ModelViewSet class, which inherits from the GenericAPIView and implements a collection of different methods, such as: .list(), .retrieve(), .create(), .update(), .partial_update(), and .destroy()
-
-here you have an exemple of implementation:
-
-```Python
-class AccountViewSet(viewsets.ModelViewSet):
-    """
-    A simple ViewSet for viewing and editing accounts.
-    """
-    queryset = Account.objects.all()
-    serializer_class = AccountSerializer
-    permission_classes = [IsAccountAdminOrReadOnly]
-```
-
-To learn more click thin [link](https://www.django-rest-framework.org/api-guide/viewsets/#modelviewset)
-
-
 # Asynchronous Tasks
 
 ## Workers, Message Queues, and Message Brokers
@@ -171,7 +31,7 @@ We also have to pip install it
 Let's start by pip installing Celery
 `pip install celery`
 
-Now we have to configure the celery on our **settings.py,**  by adding the following block of code: 
+Now we have to configure the celery on our **settings.py,**  by adding the following block of code:
 
 ```python
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379'
@@ -206,6 +66,49 @@ def debug_task(self):
 ```
 
 Now on our app directory we will create the async tasks to be used, we then create a file called **tasks.py **and create our task, in his case we are creating a task to send a confirmation email, the code used is found below:
+
+```python
+from celery import shared_task
+from django.core.mail import EmailMessage
+from django.conf import settings
+from django.contrib.auth.models import User
+
+@shared_task
+def registration_completed(user_id, confirmation):
+    user = User.objects.get(pk=user_id)
+    subject = f'Welcome {user.username}, to PrizeCard'
+    message = f'''Welcome to PrizeCard.
+To confirm your email please use the code below
+{confirmation}''' 
+    email = EmailMessage(subject, message, 'admin@myshop.com', [user.email])
+    email.send()
+```
+
+> Note that we have used the @shared_task notation, this is essential for celery to identify it as a task.
+
+Finally we have to pass this task to the function we want to trigger it, in our case we will pass it to the save() method inside our Business models.
+
+```python
+def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.user)
+        registration_completed.delay(self.user.pk, self.confirmation)
+        return super().save(*args, **kwargs)
+```
+
+> Note that we have used the keyword **delay **when calling our shared_task
+
+As we are sending an email, we can not forget to configure our email server, for this we have to add the following to our **settings.py**
+
+```python
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = 'victorres......@gmail.com'
+EMAIL_HOST_PASSWORD = '{password}'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+```
+
+Now that is all settle we can run our server and test our asynchronous function, we will need to run our celery/redis server separated of our project server, for this we need to run the code below in our terminal
 
 `celery -A PrizeCard.celery worker -l DEBUG -E`
 
@@ -274,54 +177,63 @@ other option would be to use **reverse** where we would pass the latitude and lo
 
 we will then assign the values of latitude and longitude to our model
 
-## Adding extra field to BusinessSerializer
+## Calculating distance between business and user on viewset
 
 For this we will have to install a few packages: requests, ipify and geopy
 `pip install requests ipify geopy`
 
-Now on Serializers.py we will add the following imports:
+Now on viewser.py we will add the following imports:
 
 ```
 import requests
 from geopy.distance import great_circle
 ```
 
-The updated BusinessesSerializer is found below with explanations below:
+In order to calculate the distance between the business and the user we will overwrite the `list method` on our BusinessViewSet. Here we will iterate over each entry on our table adding a new field called 'distance' to it and before passing it to our serializer we still have to order our table by the new field in an ascending order.
+
+Let's see our code here and get it analysed below.
 
 ```python
-class BusinessesSerializer(serializers.ModelSerializer):
-    distance = serializers.SerializerMethodField('get_location')
+class BusinessesViewSet(ModelViewSet):
+    serializer_class = BusinessesSerializer
+    queryset = Businesses.objects.all()
+    
+    def list(self, request, pk=None):
+        serializer_class = ListBusinessesSerializer
 
-    class Meta:
-        model= Businesses
-        fields = ('id', 'address_first_line', 'address_second_line',
-                  'city', 'region', 'post_code', 'phone_number', 'logo', 'join_date', 'distance')
-
-    def get_location(self, business):
+        #Get IP info once
         ip_info = requests.get('https://api64.ipify.org?format=json').json()
         ip_address = ip_info["ip"]
-        response = requests.get(f'http://api.ipstack.com/{ip_address}?access_key=8eba29fcae0bbc63c1e93b8c370e4bcf').json() 
+        response = requests.get(f'http://api.ipstack.com/{ip_address}?access_key=8eba29fcae0bbc63c1e93b8c370e4bcf').json()
         latitude = response.get("latitude")
         longitude = response.get("longitude")
         first = (float(latitude), float(longitude))
-        second = (business.lat, business.long)
-        distance = great_circle(first, second).miles
+
+        # Calculate distances for all businesses and pass them as a context to our serializer
+        businesses = Businesses.objects.all()
+        distances = {}
+        for business in businesses:
+            second = (business.lat, business.long)
+            distance = great_circle(first, second).miles
+            distances[business.id] = distance
+        
+        # Sort by distance
+        businesses_processed = BusinessesSerializer(businesses, many=True, context={'distances': distances}).data
+        businesses_processed.sort(key=lambda x: x['distance'])
 
 
-        return distance
+        return Response(businesses_processed)
 ```
 
-`distance = serializers.SerializerMethodField('get_location')`
-The code above creates a variable called distance with the value which is returned by the **get_location** method, this variale will then be added to our fields list.
+first we get the IP address of the users, and asign it to a variable called **first****,** we then move to calculate the distance between the points.
 
-`def get_location(self, business):`
-The function above is the one to be called by the SerializerMethodField which will pass a reference of each object to the **business** parameter
+the last thing to be done is to sort the resulting table using the new field 'distance' as parameter.
 
 `ip_info = requests.get('https://api64.ipify.org?format=json').json()`
 the line above will return the machine IP from the website api64 and will convert the information collected into json. we will then isolate the ip addres into the **ip_address** variable.
 
 `response = requests.get(f'http://api.ipstack.com/{ip_address}?access_key=8eba29fcae0bbc63c1e93b8c370e4bcf').json()`
-The line above will access the ipstack api, we will pass our ip\_address and the access\_key to return an json with different informations.
+The line above will access the ipstack api, we will pass our ip_address and the access_key to return an json with different informations.
 
 > IMPORTANT: ipstack is an api, which we have to pay, for now we are using the free_version which allow us to make 100 requisitions a month
 
@@ -335,4 +247,25 @@ on the line above we are colecting the lat and long variables from each object o
 
 finally here we are using the `great_circle` method from  **geopy.distance** to calculate the distance in miles from first and second locations
 
-this variable is then returned to fill the information into the variable **distance  **which have been created at the beginning of our code and then passed to our **BusinessessSerializer FIELDS list**
+## Adding extra field to BusinessSerializer
+
+To add the distance to our serializer, we first have to retrieve the
+
+```python
+class ListBusinessesSerializer(serializers.ModelSerializer):
+    distance = serializers.SerializerMethodField()
+
+    class Meta:
+        model= Businesses
+        fields = ('id', 'business_name','address_first_line', 'address_second_line',
+                  'city', 'region', 'post_code', 'phone_number', 'logo', 'join_date', 'distance')
+
+    def get_distance(self, business):
+        return self.context['distances'][business.id]
+```
+
+`distance = serializers.SerializerMethodField()`
+The code above creates a variable called distance with the value which is returned by the **get_location** method, this variable will then be added to our fields list.
+
+`def get_location(self, business):`
+The function above is the one to be called by the SerializerMethodField which will pass a reference of each object to the **business** parameter
