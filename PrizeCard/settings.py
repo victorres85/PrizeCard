@@ -40,7 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'App_User',
-    'Business'
+    'Business',
+    'django_countries',
+    'phonenumber_field'
 ]
 
 MIDDLEWARE = [
@@ -135,3 +137,17 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+
+#  Email server configuration
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = 'victorres.emailtest@gmail.com'
+EMAIL_HOST_PASSWORD = 'vwriiyfdaixevizz'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379'
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Europe/London'

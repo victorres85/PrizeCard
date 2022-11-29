@@ -1,103 +1,271 @@
-# Starting environment
+# Asynchronous Tasks
 
-To work with python we have first to create a virtual enviroment to hold our project, to do it you will navagate to the project directory on the terminal and run the following command (keep on mind the python3 and pip have to be previously installed):
+## Workers, Message Queues, and Message Brokers
 
-`python -m venv env`
+While your web server processes requests and returns responses, you need a second task-based server,
+named worker, to process the asynchronous tasks. One or multiple workers can be running and executing
+tasks in the background. These workers can access the database, process files, send e-mails, etc.
+Workers can even queue future tasks. All while keeping the main web server free to process HTTP requests.
 
-> Command used to create the virtual environment
+To tell the workers what tasks to execute we need to send messages. We communicate with brokers by
+adding messages to a message queue, which is basically a first in, first out (FIFO) data structure.
 
-`. env/bin/activate`
+## Sending email with Redis and Celery
 
-> Command used to activate our virtual env
+On our application we will be using Redis as a Message broker and the Celery to manage our workers.
 
-`pip install -r requirements.txt`
+Redis (Remote Dictionary Server) is an in-memory data structure store, used as a distributed, in-memory key–value database, cache and message broker, with optional durability. Redis supports different kinds of abstract data structures, such as strings, lists, maps, sets, sorted sets, HyperLogLogs, bitmaps, streams, and spatial indices.
 
-> Command used to install all required libraries
+*Celery*, not only allow you to create asynchronous tasks easily and let them be executed by
+workers as soon as possible, but you can also schedule them to run at a specific time.
+https://docs.celeryq.dev/en/stable/index.html.
 
-`python manage.py runserver`
+### Redis
 
-> This command will run the application, now if you enter the http://127.0.0.1:8000 you should see our application running on your browser
+To install and configure Redis we can follow the tutorial in the the following [link](https://www.digitalocean.com/community/tutorials/how-to-install-and-secure-redis-on-ubuntu-18-04)
+We also have to pip install it
+`pip install redis`
 
-# CREATING NEW MODELS
+### Celery
 
-To create our models we will be using the `models.py` file which is located inside our App_User directory, inside `models.py` make sure to have the following imports:
+Let's start by pip installing Celery
+`pip install celery`
+
+Now we have to configure the celery on our **settings.py,**  by adding the following block of code:
+
+```python
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379'
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Europe/London'
+```
+
+We then create a new file on the same directory where we have our settings.py, this new file will be called **celery.py **and should have the following information:
+
+```python
+import os
+from celery import Celery
+from django.conf import settings
+
+# set the default Django settings module for the 'celery' program.
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'PrizeCard.settings')
+
+app = Celery('PrizeCard', broker_url='redis://127.0.0.1:6379')
+
+app.conf.enable_utc = False
+app.conf.update(timezone = 'Europe/London')
+
+app.config_from_object(settings, namespace='CELERY')
+
+app.autodiscover_tasks()
+
+@app.task(bind=True)
+def debug_task(self):
+    print(f'Request: {self.request!r}')
+```
+
+Now on our app directory we will create the async tasks to be used, we then create a file called **tasks.py **and create our task, in his case we are creating a task to send a confirmation email, the code used is found below:
+
+```python
+from celery import shared_task
+from django.core.mail import EmailMessage
+from django.conf import settings
+from django.contrib.auth.models import User
+
+@shared_task
+def registration_completed(user_id, confirmation):
+    user = User.objects.get(pk=user_id)
+    subject = f'Welcome {user.username}, to PrizeCard'
+    message = f'''Welcome to PrizeCard.
+To confirm your email please use the code below
+{confirmation}''' 
+    email = EmailMessage(subject, message, 'admin@myshop.com', [user.email])
+    email.send()
+```
+
+> Note that we have used the @shared_task notation, this is essential for celery to identify it as a task.
+
+Finally we have to pass this task to the function we want to trigger it, in our case we will pass it to the save() method inside our Business models.
+
+```python
+def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.user)
+        registration_completed.delay(self.user.pk, self.confirmation)
+        return super().save(*args, **kwargs)
+```
+
+> Note that we have used the keyword **delay **when calling our shared_task
+
+As we are sending an email, we can not forget to configure our email server, for this we have to add the following to our **settings.py**
+
+```python
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = 'victorres......@gmail.com'
+EMAIL_HOST_PASSWORD = '{password}'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+```
+
+Now that is all settle we can run our server and test our asynchronous function, we will need to run our celery/redis server separated of our project server, for this we need to run the code below in our terminal
+
+`celery -A PrizeCard.celery worker -l DEBUG -E`
+
+# GEOLOCALIZATION
+
+We will divide this topic in two diferent parts:
+
+First we will add the latitude and longitude to the Businesses model so we can have the exact location of each business, Second we will collect the ip address of the machine we are using and identified its location, it will be used to feed the BusinessesSerializer with a new field called **distance** which will be the calculation of the users IP location with each business location
+
+## Adding latitude and longitude to the Businesses model
+
+`geopy` is the library responsible for searching for the latitude and longitude. it will use the Nominatim api to retrieve those informations.
+
+Let's start by installing it:
+`pip install geopy`
+
+Down here we have the code we have used inside models.py with explanations below it
 
 ```python
 from django.db import models
-from django.contrib.auth.models import User
+from geopy.geocoders import Nominatim
+
+class Businesses(models.Model):
+    ...
+    lat = models.CharField(max_length=20, null=True, blank=True)
+    long = models.CharField(max_length=20, null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        geolocator = Nominatim(user_agent="Business")
+        location = geolocator.geocode(self.post_code)
+        self.lat = location.latitude
+        self.long = location.longitude
+        if not self.slug:
+            self.slug = slugify(self.business_name)
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
 ```
 
-`models` will be used to extend the Model class into our tables class
-`User` will be used for a OneToOneField relationship between our App_User model and the User model provided by Django.
+First we have imported the Nominatim library from geopy
 
-Bellow you have an example of Model with some explanations:
+`from geopy.geocoders import Nominatim`
+
+We also have added 2 blank fields to our model:
+
+`lat = models.CharField(max_length=20, null=True, blank=True)`
+
+`long = models.CharField(max_length=20, null=True, blank=True)`
+
+To fill those fildes with the required information we have overwrite the save method
+
+`geolocator = Nominatim(user_agent="home")`
+
+On `user_agent` we have to add our app's name.
+
+`location = geolocator.geocode(self.pincode)`
+
+By using the **geocode** method we can pass a pincode, a postcode or an address and have the latitude and longitude as return.
+
+other option would be to use **reverse** where we would pass the latitude and longitude and have the address
+
+`self.lat = location.latitude`
+
+`self.long = location.longitude`
+
+we will then assign the values of latitude and longitude to our model
+
+## Calculating distance between business and user on viewset
+
+For this we will have to install a few packages: requests, ipify and geopy
+`pip install requests ipify geopy`
+
+Now on viewser.py we will add the following imports:
 
 ```
-Class Businesses(models.Model):
-    user = models.OneToOneField(User, null=True, on_delete=models.CASCADE)
-    slug = models.SlugField(max_length=200, unique=True)
-    email = models.EmailField(max_length = 250)
-    address_first_line = models.CharField(max_length = 200)
-    address_second_line = models.CharField(max_length = 200, blank=True)
-    city = models.CharField(max_length = 100)
-    region = models.CharField(max_length = 100)
-    post_code = models.CharField(max_length = 10)
-    phone_number = models.IntegerField()
-    logo = models.ImageField(upload_to='media/businesses/%y/%m/%d', blank=True)
-    join_date = models.DateTimeField(auto_now_add = True)
-
-    def __unicode__(self):
-        return self.user.username
+import requests
+from geopy.distance import great_circle
 ```
 
-`Class Businesses(models.Model):` -\> creates our model called Business which extends models.Model (it's necessary to tell django to build a SQL table using the information we will declare insede this class)
-`user = models.OneToOneField(User, null=True, on_delete=models.CASCADE)`
-`OneToOneField` -\> creates a one to one relationshipe between Business and User Tables
-`SlugField` -\> creates a text field that will be used as a slug so a URL can utilize it
-`EmailField` -\> creates a text field with predefine email validation, *max_length = 250* is a required parameter
-`CharField` -\> creates a text field with, *max_length = 200* is a required parameter
-`IntegerField` -\> creates a Integer Field
-`ImageField` -\> is a FileField with uploads restricted to image formats only, *upload_to=* is required, we will here pass the path for our image to be stored.
-`DateTimeField` -\> is used to work with date and time. *auto\_now\_add = True* will tell Django to automatically fill the field with the date and time of the moment of the object creation. (we could also use *auto_now=True,* this parameter is used to get the date and time field updated every time the object is modified.
-`TextField` -\> creates a text field that would accept multiple lines of text.
+In order to calculate the distance between the business and the user we will overwrite the `list method` on our BusinessViewSet. Here we will iterate over each entry on our table adding a new field called 'distance' to it and before passing it to our serializer we still have to order our table by the new field in an ascending order.
 
+Let's see our code here and get it analysed below.
+
+```python
+class BusinessesViewSet(ModelViewSet):
+    serializer_class = BusinessesSerializer
+    queryset = Businesses.objects.all()
+    
+    def list(self, request, pk=None):
+        serializer_class = ListBusinessesSerializer
+
+        #Get IP info once
+        ip_info = requests.get('https://api64.ipify.org?format=json').json()
+        ip_address = ip_info["ip"]
+        response = requests.get(f'http://api.ipstack.com/{ip_address}?access_key=8eba29fcae0bbc63c1e93b8c370e4bcf').json()
+        latitude = response.get("latitude")
+        longitude = response.get("longitude")
+        first = (float(latitude), float(longitude))
+
+        # Calculate distances for all businesses and pass them as a context to our serializer
+        businesses = Businesses.objects.all()
+        distances = {}
+        for business in businesses:
+            second = (business.lat, business.long)
+            distance = great_circle(first, second).miles
+            distances[business.id] = distance
+        
+        # Sort by distance
+        businesses_processed = BusinessesSerializer(businesses, many=True, context={'distances': distances}).data
+        businesses_processed.sort(key=lambda x: x['distance'])
+
+
+        return Response(businesses_processed)
 ```
-        def __unicode__(self):
-        return self.user.username
+
+first we get the IP address of the users, and asign it to a variable called **first****,** we then move to calculate the distance between the points.
+
+the last thing to be done is to sort the resulting table using the new field 'distance' as parameter.
+
+`ip_info = requests.get('https://api64.ipify.org?format=json').json()`
+the line above will return the machine IP from the website api64 and will convert the information collected into json. we will then isolate the ip addres into the **ip_address** variable.
+
+`response = requests.get(f'http://api.ipstack.com/{ip_address}?access_key=8eba29fcae0bbc63c1e93b8c370e4bcf').json()`
+The line above will access the ipstack api, we will pass our ip_address and the access_key to return an json with different informations.
+
+> IMPORTANT: ipstack is an api, which we have to pay, for now we are using the free_version which allow us to make 100 requisitions a month
+
+we will then isolate the the latitude and longitude into different variables and pass it to a tuple called **first,** making sure each value is of Float Type.
+
+`second = (business.lat, business.long)`
+
+on the line above we are colecting the lat and long variables from each object on our model and passing it into a tupple named second
+
+`distance = great_circle(first, second).miles`
+
+finally here we are using the `great_circle` method from  **geopy.distance** to calculate the distance in miles from first and second locations
+
+## Adding extra field to BusinessSerializer
+
+To add the distance to our serializer, we first have to retrieve the
+
+```python
+class ListBusinessesSerializer(serializers.ModelSerializer):
+    distance = serializers.SerializerMethodField()
+
+    class Meta:
+        model= Businesses
+        fields = ('id', 'business_name','address_first_line', 'address_second_line',
+                  'city', 'region', 'post_code', 'phone_number', 'logo', 'join_date', 'distance')
+
+    def get_distance(self, business):
+        return self.context['distances'][business.id]
 ```
 
-> We are here defining the return from our class, so when we call it we receive the user username as return.
-> to investigate which fields do we have on the user Model we can open the django shell on the terminal by writing
-> `python3 manage.py shell`
-> we can then import the user model with the code:
-> `from django.contrib.auth.models import User`
-> once the User model has been imported we can now run the command bellow and access all the properties from this model:
-> `User.__dict__.keys()`
+`distance = serializers.SerializerMethodField()`
+The code above creates a variable called distance with the value which is returned by the **get_location** method, this variable will then be added to our fields list.
 
-## Migrating the database
-
-Once the model is set up, you can run the following code to actually create the databases:
-
-`python3 manage.py makemigrations`
-`python3 manage.py migrate`
-
-
-## Adding the database to the admin panel
-On admin.py write the following lines
-
-`from .models import Name_of_Model`
-
-`admin.site.register(Name_of_Model)`
-
-
-you can now create a SuperUser to be able to access the admin panel, for this write the following at the terminal
-
-`python3 manage.py createsuperuser`
-
-follow the instructions to setup the new user, with that done you can now run
-
-`python3 manage.py runserver`
-
-and access the Admin through the following address
-http://127.0.0.1:8000/admin/
-
+`def get_location(self, business):`
+The function above is the one to be called by the SerializerMethodField which will pass a reference of each object to the **business** parameter

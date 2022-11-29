@@ -4,7 +4,10 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.template.defaultfilters import slugify
 import random 
-from .tasks import registration_completed
+from PrizeCard.tasks import registration_completed
+from geopy.geocoders import Nominatim
+
+
 
 # Create your models here.
 
@@ -43,8 +46,8 @@ def save_profile(sender, instance, **kwargs):
 
 class Businesses(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
-    slug = models.SlugField(blank=True, unique=True)
-    business_name = models.CharField(max_length = 200, blank=True)
+    slug = models.SlugField(blank=True) # unique=True
+    business_name = models.CharField(max_length = 200)
     address_first_line = models.CharField(max_length = 200, blank=True)
     address_second_line = models.CharField(max_length = 200, blank=True)
     city = models.CharField(max_length = 100, blank=True) 
@@ -54,6 +57,10 @@ class Businesses(models.Model):
     logo = models.ImageField(upload_to='media/businesses/%y/%m/%d', blank=True)
     join_date = models.DateTimeField(auto_now_add = True)
     active = models.BooleanField(default=True, blank=True)
+    lat = models.CharField(max_length=20, null=True, blank=True)
+    long = models.CharField(max_length=20, null=True, blank=True)
+
+    
    
 
     def getNumberOfActiveBusinesses(self):
@@ -64,14 +71,16 @@ class Businesses(models.Model):
 
     
     def save(self, *args, **kwargs):
+        geolocator = Nominatim(user_agent="home")
+        location = geolocator.geocode(self.post_code)
+        self.lat = location.latitude
+        self.long = location.longitude
         if not self.slug:
             self.slug = slugify(self.business_name)
         return super().save(*args, **kwargs)
 
     def __str__(self):
         return self.slug
-
-
 
 
 class Cards(models.Model):
