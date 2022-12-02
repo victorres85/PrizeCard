@@ -3,7 +3,6 @@ from django.contrib.auth.models import User
 from django_countries.fields import CountryField
 from phonenumber_field.modelfields import PhoneNumberField
 from Business.models import Cards
-import random 
 from PrizeCard.tasks import registration_completed
 from geopy.geocoders import Nominatim
 from Business.models import confirmation_code
@@ -26,7 +25,7 @@ class AppUserProfile(models.Model):
     city = models.CharField(max_length=20, null=True, blank=True)
     country = CountryField(null=True, blank=True)
     phone_number = PhoneNumberField(null=True, blank=True)
-    profile_picture = models.ImageField(upload_to='media/app_user/%y/%m/%d', blank=True)
+    profile_picture =  models.ImageField(upload_to='media/app_user/%y/%m/%d', blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
     lat = models.CharField(max_length=20, null=True, blank=True)
@@ -50,38 +49,38 @@ class AppUserProfile(models.Model):
         return self.slug
 
 @receiver(post_save, sender=User)
-def create_profile(sender, instance, created, **kwargs):
+def create_appuserprofile(sender, instance, created, **kwargs):
     if created:
         AppUserProfile.objects.create(user=instance)
 
 
-@receiver(post_save, sender=User)
-def save_profile(sender, instance, **kwargs):
-    instance.appuserprofile.save()
+# @receiver(post_save, sender=User)
+# def save_appuserprofile(sender, instance, **kwargs):
+#     print(instance.__dict__.keys())
+#     instance.appuserprofile.save()
 
 
 class MyCards(models.Model):
     profile = models.ForeignKey(AppUserProfile, on_delete=models.CASCADE)
     card = models.ForeignKey(Cards, on_delete=models.CASCADE)
     points = models.IntegerField(default=0)
+    image = models.ImageField(upload_to='mycards', blank=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
+    code = models.CharField(max_length=6, blank=True, null=True)
 
     
     def getNumberOfInitiatedCards(self):
         return MyCards.objects.filter(self.points>0).count()
 
- #   def update(self, *args, **kwargs):
- #       if self.points == self.card.total_points:
- #           print('CONGRATULATIONS YOU HAVE JUST COMPLETED YOUR CARD')
-    
-    def save(self, *args, **kwargs):
-        if self.points == self.card.total_points:
-            MyCardsHistory.objects.create(
-                profile = self.profile,
-                card = self.card,
-                finalized = datetime.now()
-            )
+
+    # def save(self, *args, **kwargs):
+    #     if self.points == self.card.total_points:
+    #         MyCardsHistory.objects.create(
+    #             profile = self.profile,
+    #             card = self.card,
+    #             finalized = datetime.now()
+    #         )
     
 
     def __str__(self):
@@ -94,4 +93,9 @@ class MyCardsHistory(models.Model):
 
     def __str__(self):
         return f"{self.profile.user.username} - {self.card.business.business_name}"
+
+class Receipt(models.Model):
+    receipt_key = models.CharField(max_length=300, unique=True)
+    card = models.ForeignKey(Cards, on_delete=models.DO_NOTHING)
+    profile = models.ForeignKey(User, on_delete=models.DO_NOTHING)
     
