@@ -4,6 +4,12 @@ from django.contrib.auth.models import User
 from django_countries.serializers import CountryFieldMixin
 
 
+class RewardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MyCards
+        fields = ('code',)
+
+
 class UpdateMyCardsSerializer(serializers.ModelSerializer):
     class Meta:
         model = MyCards
@@ -22,7 +28,7 @@ class MyCardsHistorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MyCardsHistory
-        fields = ('profile', 'card', 'finalized')
+        fields = ('profile', 'business', 'card', 'code', 'finalized')
 
 
 class AppUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer):

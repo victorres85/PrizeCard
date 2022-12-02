@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework.viewsets import ModelViewSet
-from .serializer import UserSerializer, ListUserSerializer, MyCardCodeSerializer, AppUserProfileSerializer, MyCardsSerializer, MyCardsHistorySerializer, UpdateMyCardsSerializer
+from .serializer import UserSerializer, ListUserSerializer, RewardSerializer ,MyCardCodeSerializer, AppUserProfileSerializer, MyCardsSerializer, MyCardsHistorySerializer, UpdateMyCardsSerializer
 from django.contrib.auth.models import User
 from rest_framework.response import Response
 import re
@@ -40,8 +40,11 @@ class AppUserProfileViewSet(ModelViewSet):
 class MyCardsViewSet(ModelViewSet):
     serializer_class = MyCardsSerializer
     queryset = MyCards.objects.all()
+    
 
-    def get_serializer_class(self, pk=None):
+    def get_serializer_class(self):
+        if self.request.GET.get('code') != None:
+            return RewardSerializer
         if self.action == 'update':
             return UpdateMyCardsSerializer
         else:
@@ -63,8 +66,10 @@ class MyCardsViewSet(ModelViewSet):
         hour_pattern = "\d{2}[:]\d{2}[:]\d{2}"
         date = re.findall(date_pattern, result)
         hour = re.findall(hour_pattern, result)
+        # validade image and add a point if everything is ok
         if 'Mezcale' in result:
             myCards_obj.points += 1
+            # check if all the points have been acumulated, send an email with a congrats message and generates a code to be used by the custumer 
             if myCards_obj.points == 2:#  total_points:
                 myCards_obj.points = 0
                 card_completed.delay(myCards_obj.profile.user.pk)
@@ -72,7 +77,9 @@ class MyCardsViewSet(ModelViewSet):
                 MyCardsHistory.objects.create(
                 profile = myCards_obj.profile,
                 card = myCards_obj.card,
-                finalized = datetime.now()
+                finalized = datetime.now(),
+                code = myCards_obj.code,
+                business = myCards_obj.card.business.business_name,
                 )
 
         else:
@@ -85,14 +92,7 @@ class MyCardsViewSet(ModelViewSet):
         serializer = UpdateMyCardsSerializer(myCards_obj)
         return Response(serializer.data)
        
-    # def retrieve(self, request, *args, **kwargs):
-    #     instance 
-    #     myCards_obj = MyCards.objects.get(id=pk)
-    #     if myCards_obj.code != None:
-    #         serializer_class = MyCardCodeSerializer 
-           
-          
-      #  return super().retrieve(request, *args, **kwargs)
+
 
 class MyCardsHistoryViewSet(ModelViewSet):
     serializer_class = MyCardsHistorySerializer

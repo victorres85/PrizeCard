@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django_countries.fields import CountryField
 from phonenumber_field.modelfields import PhoneNumberField
-from Business.models import Cards
+from Business.models import Cards, Businesses
 from PrizeCard.tasks import registration_completed
 from geopy.geocoders import Nominatim
 from Business.models import confirmation_code
@@ -74,21 +74,14 @@ class MyCards(models.Model):
         return MyCards.objects.filter(self.points>0).count()
 
 
-    # def save(self, *args, **kwargs):
-    #     if self.points == self.card.total_points:
-    #         MyCardsHistory.objects.create(
-    #             profile = self.profile,
-    #             card = self.card,
-    #             finalized = datetime.now()
-    #         )
-    
-
     def __str__(self):
         return self.card.business.business_name
 
 class MyCardsHistory(models.Model):
+    business = models.ForeignKey(Businesses, on_delete=models.DO_NOTHING, blank=True, null=True)
     profile = models.ForeignKey(AppUserProfile, on_delete=models.CASCADE)
-    card = models.ForeignKey(Cards, on_delete=models.CASCADE)
+    card = models.ForeignKey(Cards, on_delete=models.CASCADE, blank=True)
+    code = models.CharField(max_length=6, blank=True)
     finalized = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
