@@ -4,14 +4,17 @@ from django.contrib.auth.models import User
 from django_countries.serializers import CountryFieldMixin
 
 
+class UpdateMyCardsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MyCards
+        fields = ('profile', 'card', 'points', 'created', 'updated', 'image')
+
 
 class MyCardsSerializer(serializers.ModelSerializer):
     card = serializers.CharField(source='card.business.business_name')
-   # profile = serializers.CharField(source='profile.user.first_name')
-
     class Meta:
         model = MyCards
-        fields = ('profile', 'card', 'points', 'created', 'updated')
+        fields = ('profile', 'card', 'points', 'created', 'updated', 'code', 'image')
 
 
 class MyCardsHistorySerializer(serializers.ModelSerializer):
@@ -23,23 +26,26 @@ class MyCardsHistorySerializer(serializers.ModelSerializer):
 
 
 class AppUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer):
-    print(AppUserProfile.__dict__.keys())
-    myCards = serializers.SlugRelatedField(many=True, read_only=True, slug_field="card")
+    #myCards = serializers.SlugRelatedField(many=True, read_only=True, slug_field="card")
 
-     #MyCardsSerializer(source='mycards_set', many=True)
     class Meta:
         model = AppUserProfile
         fields = ('id', 'user','address_1', 'address_2', 'city', 'country',
-        'post_code', 'phone_number', 'profile_picture', 'created', 'lat', 'long', 'myCards')
+        'post_code', 'phone_number', 'profile_picture', 'created', 'lat', 'long')#, 'myCards')
 
 class ListUserSerializer(serializers.ModelSerializer):
     profile = AppUserProfileSerializer()
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'profile', )
+        fields = ('id','username', 'email', 'password', 'profile', )
 
 class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('username', 'email', 'password')
+        fields = ('id','username', 'email', 'password')
+
+class MyCardCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MyCards
+        fields = ('code', )
