@@ -112,6 +112,25 @@ Now that is all settle we can run our server and test our asynchronous function,
 
 `celery -A PrizeCard.celery worker -l DEBUG -E`
 
+## Scheduling tasks
+
+We have added a monthly task, which will be in charge to verify all the prizeCards that have been concluded during a period of time.
+
+To schedule the time we have to add the following code to our settings.py, the code below will send an email every 1st of each month.
+
+```Python
+from celery.schedules import crontab
+CELERY_BEAT_SCHEDULE = {
+    'add-every-first-of-each-month':{
+        'task':'PrizeCard.tasks.send_monthly_emails',
+        'schedule': crontab(0, 0, day_of_month='1'),
+        'args': ([x for x in range(100)])
+    }
+}
+```
+
+we also have to run the following command on the terminal: `celery -A PrizeCard.celery beat`
+
 # GEOLOCALIZATION
 
 We will divide this topic in two diferent parts:
