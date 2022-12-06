@@ -152,3 +152,12 @@ CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Europe/London'
+
+from celery.schedules import crontab
+CELERY_BEAT_SCHEDULE = {
+    'add-every-first-of-each-month':{
+        'task':'PrizeCard.tasks.send_monthly_emails',
+        'schedule': crontab(0, 0, day_of_month='1'),
+        'args': ([x for x in range(100)]) #[business for business in Businesses.objects.all()]
+    }
+}

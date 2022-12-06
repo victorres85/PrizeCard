@@ -79,7 +79,7 @@ class MyCardsViewSet(ModelViewSet):
                 card = myCards_obj.card,
                 finalized = datetime.now(),
                 code = myCards_obj.code,
-                business = myCards_obj.card.business.business_name,
+                business = myCards_obj.card.business,
                 )
 
         else:
